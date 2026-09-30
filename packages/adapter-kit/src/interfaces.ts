@@ -245,6 +245,12 @@ export interface AgentRuntime {
   abort(runId: string): Promise<void>;
 }
 
+/** Resolve a durable runtime id to the concrete execution engine for a Bot run. */
+export interface AgentRuntimeResolver {
+  list(): AdapterDescriptor<AgentRuntimeCapabilities>[];
+  resolve(runtimeId?: string | null): AgentRuntime;
+}
+
 export interface ModelProvider {
   describe(): AdapterDescriptor<{ catalog: boolean; byok: boolean }>;
   listModels(): Promise<Array<{ provider: string; id: string; label: string; billing: string }>>;

@@ -38,6 +38,7 @@ function mapBot(
     title: string;
     description: string;
     instructions: string;
+    runtimeId?: string | null;
     color: string;
     notifyOnFinish: boolean;
     pinned: boolean;
@@ -72,6 +73,7 @@ function mapBot(
     title: bot.title,
     description: bot.description,
     instructions: bot.instructions,
+    runtimeId: bot.runtimeId ?? null,
     color: bot.color,
     notifyOnFinish: bot.notifyOnFinish,
     pinned: bot.pinned,
@@ -380,6 +382,7 @@ export function createRepos(prisma: PrismaClient) {
         title: string;
         description: string;
         instructions: string;
+        runtimeId?: string | null;
         notifyOnFinish: boolean;
         color?: string;
         parentBotId?: string | null;
@@ -402,6 +405,7 @@ export function createRepos(prisma: PrismaClient) {
         });
         color = BOT_COLORS[count % BOT_COLORS.length] ?? BOT_COLORS[0];
       }
+      let runtimeId = input.runtimeId ?? null;
       let modelProvider = input.modelProvider ?? null;
       let modelId = input.modelId ?? null;
       let thinkingLevel = input.thinkingLevel ?? null;
@@ -414,6 +418,7 @@ export function createRepos(prisma: PrismaClient) {
           },
         });
         if (!parent) throw new IsolationError();
+        if (runtimeId == null) runtimeId = parent.runtimeId ?? null;
         if (!modelId) {
           modelProvider = parent.modelProvider ?? null;
           modelId = parent.modelId ?? null;
@@ -448,6 +453,7 @@ export function createRepos(prisma: PrismaClient) {
               title: input.title,
               description: input.description,
               instructions: input.instructions,
+              runtimeId,
               notifyOnFinish: input.notifyOnFinish,
               color,
               position: (positions._max.position ?? -1) + 1,

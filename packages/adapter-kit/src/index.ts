@@ -1,3 +1,4 @@
+export * from "./agent-runtime-registry.js";
 export * from "./background-jobs.js";
 export * from "./cloud-agents.js";
 export * from "./interfaces.js";
