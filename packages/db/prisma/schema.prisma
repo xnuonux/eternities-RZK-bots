@@ -347,6 +347,8 @@ model Bot {
   title             String            @default("")
   description       String            @default("")
   instructions      String            @default("")
+  /// Null means use the deployment default runtime; explicit ids survive model/provider swaps.
+  runtimeId         String?
   color             String
   notifyOnFinish    Boolean           @default(true)
   pinned            Boolean           @default(false)
@@ -568,6 +570,8 @@ model Run {
   userId               String
   status               String
   trigger              String
+  /// Concrete engine bound when execution first starts; retained across retries/resumes.
+  runtimeId            String?
   modelProvider        String?
   modelId              String?
   error                String?

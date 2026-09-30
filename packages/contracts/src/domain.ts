@@ -40,6 +40,13 @@ export const AgentSecretInputSchema = z.object({
 });
 export type AgentSecretInput = z.infer<typeof AgentSecretInputSchema>;
 
+export const AgentRuntimeIdSchema = z
+  .string()
+  .trim()
+  .min(1)
+  .max(80)
+  .regex(/^[a-z0-9][a-z0-9._:-]*$/i);
+
 export const BotSchema = z.object({
   id: Id,
   spaceId: Id,
@@ -47,6 +54,7 @@ export const BotSchema = z.object({
   title: z.string(),
   description: z.string(),
   instructions: z.string(),
+  runtimeId: AgentRuntimeIdSchema.nullable().optional(),
   color: z.string(),
   notifyOnFinish: z.boolean(),
   pinned: z.boolean(),
@@ -293,6 +301,7 @@ export const CreateBotInput = z.object({
   title: z.string().max(BOT_TITLE_MAX_LENGTH).default(""),
   description: z.string().max(BOT_DESCRIPTION_MAX_LENGTH).default(""),
   instructions: z.string().max(BOT_INSTRUCTIONS_MAX_LENGTH).default(""),
+  runtimeId: AgentRuntimeIdSchema.nullable().optional(),
   notifyOnFinish: z.boolean().default(true),
   color: BotAvatarValueSchema.optional(),
   computerMode: ComputerModeSchema.default("team"),
@@ -320,6 +329,7 @@ export const UpdateBotInput = z
     title: z.string().trim().max(BOT_TITLE_MAX_LENGTH).optional(),
     description: z.string().trim().max(BOT_DESCRIPTION_MAX_LENGTH).optional(),
     instructions: z.string().trim().max(BOT_INSTRUCTIONS_MAX_LENGTH).optional(),
+    runtimeId: AgentRuntimeIdSchema.nullable().optional(),
     notifyOnFinish: z.boolean().optional(),
     color: BotAvatarValueSchema.optional(),
     pinned: z.boolean().optional(),
@@ -860,6 +870,7 @@ export const RunSchema = z.object({
     "created",
   ]),
   routineId: Id.nullable(),
+  runtimeId: AgentRuntimeIdSchema.nullable().optional(),
   modelProvider: z.string().nullable(),
   modelId: z.string().nullable(),
   error: z.string().nullable(),

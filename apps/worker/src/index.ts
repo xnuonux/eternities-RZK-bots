@@ -1,4 +1,4 @@
-import type { JobPublisher, JobWorkerHost } from "@rakazo/adapter-kit";
+import { AgentRuntimeRegistry, type JobPublisher, type JobWorkerHost } from "@rakazo/adapter-kit";
 import { ComposioConnector, IntegrationProviderSettings } from "@rakazo/adapters";
 import { loadRootEnv } from "@rakazo/core/node/load-root-env";
 
@@ -80,10 +80,12 @@ async function main() {
     runSecretWriter: createRunSecretWriter(secrets),
   });
   const dataDir = process.env.DATA_DIR ?? "./data";
-  const runtime =
-    process.env.AGENT_RUNTIME === "scripted"
-      ? new ScriptedAgentRuntime()
-      : new PiAgentRuntime({ sessionRoot: resolvePiSessionRoot(dataDir) });
+  const piRuntime = new PiAgentRuntime({ sessionRoot: resolvePiSessionRoot(dataDir) });
+  const scriptedRuntime =
+    process.env.AGENT_RUNTIME === "scripted" ? new ScriptedAgentRuntime() : undefined;
+  const runtime = scriptedRuntime ?? piRuntime;
+  const runtimes = new AgentRuntimeRegistry(runtime.describe().id).register(piRuntime);
+  if (scriptedRuntime) runtimes.register(scriptedRuntime);
   // Same resolver the API uses, so both processes agree on provider, model and key.
   const { key: deploymentModelKey } = resolveDeploymentModel();
   const sandboxProvider = resolveSandboxProvider(process.env);
@@ -165,6 +167,7 @@ async function main() {
   const executor = createRunExecutor({
     prisma,
     runtime,
+    runtimes,
     // Live per-account Codex catalog; never refreshes or writes credentials.
     codexCatalog: new CodexCatalogCache(),
     sandbox,

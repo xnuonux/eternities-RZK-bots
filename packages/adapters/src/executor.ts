@@ -5,6 +5,7 @@ import type {
   AgentModelOAuthCredential,
   AgentRunRequest,
   AgentRuntime,
+  AgentRuntimeResolver,
   AgentToolCompletion,
   ArtifactStore,
   AutoReviewProvider,
@@ -573,7 +574,10 @@ function runtimeFallbackModel(runtime: AgentRuntime) {
 export interface ExecutorDeps {
   prisma: PrismaClient;
   events: ThreadEvents;
+  /** Default runtime used by legacy callers and auxiliary model work. */
   runtime: AgentRuntime;
+  /** Optional multi-engine resolver for the main Bot turn. */
+  runtimes?: AgentRuntimeResolver;
   sandbox: SandboxProvider;
   memory: MemoryStore;
   memoryProviders: MemoryProviderResolver;
@@ -1300,6 +1304,32 @@ export function createRunExecutor(deps: ExecutorDeps) {
             },
           }),
         ]);
+        const requestedRuntimeId = run.runtimeId ?? bot.runtimeId;
+        const runtime = deps.runtimes ? deps.runtimes.resolve(requestedRuntimeId) : deps.runtime;
+        if (!deps.runtimes && requestedRuntimeId && runtime.describe().id !== requestedRuntimeId) {
+          throw new Error(
+            `Run requested agent runtime "${requestedRuntimeId}" but this worker only has "${runtime.describe().id}"`,
+          );
+        }
+        // Slice 1 binds on first execution. Queue-time binding follows once all run producers
+        // are centralized behind one creation helper.
+        if (run.runtimeId == null) {
+          const boundRuntimeId = runtime.describe().id;
+          const bound = await deps.prisma.run.updateMany({
+            where: { id: runId, runtimeId: null, leaseOwner: workerId, leaseFence: fence },
+            data: { runtimeId: boundRuntimeId },
+          });
+          if (bound.count !== 1) {
+            const current = await deps.prisma.run.findUnique({
+              where: { id: runId },
+              select: { runtimeId: true },
+            });
+            if (current?.runtimeId !== boundRuntimeId) {
+              throw new Error("Run runtime binding changed while execution was starting");
+            }
+          }
+        }
+
         const agentEnvironment = decryptAgentEnvironment(agentSecretRows, deps.secretStore);
         runSecrets.push(...Object.values(agentEnvironment));
         const agentEnvironmentInstruction = formatAgentEnvironmentInstruction(agentEnvironment);
@@ -1473,7 +1503,7 @@ export function createRunExecutor(deps: ExecutorDeps) {
           );
         }
         const runDeployment = deps.deploymentModelKey ? resolveDeploymentModel() : null;
-        const runtimeFallback = runtimeFallbackModel(deps.runtime);
+        const runtimeFallback = runtimeFallbackModel(runtime);
         const selected = selectConfiguredModel({
           bot,
           overrideCredential,
@@ -1596,7 +1626,7 @@ export function createRunExecutor(deps: ExecutorDeps) {
           runModelId,
           resolved.acceptsImages,
         );
-        const acceptsImages = deps.runtime.describe().capabilities.scripted || modelSeesImages;
+        const acceptsImages = runtime.describe().capabilities.scripted || modelSeesImages;
         const groupContext = thread.groupId
           ? await loadGroupContext(deps.prisma, thread.groupId, { id: bot.id, name: bot.name })
           : undefined;
@@ -1774,7 +1804,7 @@ export function createRunExecutor(deps: ExecutorDeps) {
         let approvalPausePending = false;
         let handedOff = false;
         let progressRedactor = createStreamingRedactor(runSecrets);
-        const scripted = deps.runtime.describe().capabilities.scripted;
+        const scripted = runtime.describe().capabilities.scripted;
         const script = scripted ? inferScript(task.prompt, takeoverResume?.checkpoint) : undefined;
         const flushProgress = async () => {
           if (scripted || !pendingProgress) return;
@@ -4004,7 +4034,7 @@ export function createRunExecutor(deps: ExecutorDeps) {
         }
 
         try {
-          const runtimeEvents = deps.runtime.run(
+          const runtimeEvents = runtime.run(
             {
               botId: bot.id,
               threadId: thread.id,
