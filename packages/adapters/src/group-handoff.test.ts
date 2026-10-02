@@ -1,3 +1,4 @@
+import { configureQueuedRunTestDb } from "../../db/src/queued-runs.test-helper.js";
 import type { PrismaClient } from "@rakazo/db";
 import { describe, expect, it, vi } from "vitest";
 import { handoffToGroupBot } from "./group-handoff.js";
@@ -51,7 +52,7 @@ function harness(
     },
   };
   const prisma = {
-    $transaction: vi.fn(async (callback: (value: typeof tx) => Promise<unknown>) => callback(tx)),
+    $transaction: vi.fn(async (callback: (value: typeof tx) => Promise<unknown>) => callback(configureQueuedRunTestDb(prisma, tx))),
   } as unknown as PrismaClient;
   return {
     deps: {

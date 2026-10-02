@@ -13,7 +13,7 @@ import type {
   PageBrowserResult,
   SandboxProvider,
 } from "@rakazo/adapter-kit";
-import { FakeBrowserProvider, type FakeBrowserProviderOptions } from "./fake-browser.js";
+import type { FakeBrowserProvider, FakeBrowserProviderOptions } from "./fake-browser.js";
 
 const DETACHED_MESSAGE =
   "Page browser is not attached to this computer's Chrome. Use computer_act on the desktop browser instead.";
@@ -35,7 +35,8 @@ export type LivePageBrowserDriver = (
  * `fallback: "computer_act"` — never report success against a detached DOM.
  */
 export class ComputerBrowserProvider implements BrowserProvider {
-  private readonly fake: FakeBrowserProvider;
+  private fake: Promise<FakeBrowserProvider> | undefined;
+  private readonly fakeOptions: FakeBrowserProviderOptions;
   private readonly sandbox?: SandboxProvider;
   private readonly liveDriver?: LivePageBrowserDriver;
 
@@ -49,7 +50,7 @@ export class ComputerBrowserProvider implements BrowserProvider {
     const { sandbox, liveDriver, ...fakeOptions } = options;
     this.sandbox = sandbox;
     this.liveDriver = liveDriver;
-    this.fake = new FakeBrowserProvider(fakeOptions);
+    this.fakeOptions = fakeOptions;
   }
 
   describe() {
@@ -73,7 +74,7 @@ export class ComputerBrowserProvider implements BrowserProvider {
     context: AdapterContext,
   ): Promise<BrowserNavigateResult> {
     if (this.canUseInProcess(computer)) {
-      return this.fake.navigate(computer, request, context);
+      return (await this.fakeBrowser()).navigate(computer, request, context);
     }
     const live = await this.runLive(computer, { command: "navigate", url: request.url }, context);
     if (live?.ok !== true || live.fallback === "computer_act") {
@@ -96,7 +97,7 @@ export class ComputerBrowserProvider implements BrowserProvider {
     context: AdapterContext,
   ): Promise<BrowserSnapshotResult> {
     if (this.canUseInProcess(computer)) {
-      return this.fake.snapshot(computer, request, context);
+      return (await this.fakeBrowser()).snapshot(computer, request, context);
     }
     const live = await this.runLive(computer, { command: "snapshot" }, context);
     if (live?.ok !== true || live.fallback === "computer_act") {
@@ -124,7 +125,7 @@ export class ComputerBrowserProvider implements BrowserProvider {
     context: AdapterContext,
   ): Promise<BrowserActResult> {
     if (this.canUseInProcess(computer)) {
-      return this.fake.act(computer, request, context);
+      return (await this.fakeBrowser()).act(computer, request, context);
     }
     const live = await this.runLive(
       computer,
@@ -155,6 +156,13 @@ export class ComputerBrowserProvider implements BrowserProvider {
 
   private canUseInProcess(computer: ComputerRef): boolean {
     return computer.kind === "fake";
+  }
+
+  private async fakeBrowser(): Promise<FakeBrowserProvider> {
+    this.fake ??= import("./fake-browser.js").then(({ FakeBrowserProvider }) =>
+      new FakeBrowserProvider(this.fakeOptions),
+    );
+    return this.fake;
   }
 
   private async runLive(

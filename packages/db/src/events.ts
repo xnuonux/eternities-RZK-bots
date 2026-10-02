@@ -28,6 +28,7 @@ import {
   RunHistoryWriteError,
 } from "./messages.js";
 import { withTransactionRetry } from "./transaction-retry.js";
+import { createQueuedRun } from "./queued-runs.js";
 
 const EVENT_BATCH_SIZE = 200;
 const PUSH_CATCH_UP_MS = 30_000;
@@ -416,7 +417,7 @@ export async function sendUserMessage(
             status: "queued",
           },
         });
-        run = await tx.run.create({
+        run = await createQueuedRun(prisma, tx, {
           data: {
             spaceId: input.spaceId,
             botId: input.botId,
@@ -1187,13 +1188,14 @@ async function finalizeRunOnce(
         data: { runId: null },
       });
     }
-    const continuationRunId = await createSteeringContinuation(tx, input);
+    const continuationRunId = await createSteeringContinuation(prisma, tx, input);
     await tx.bot.update({ where: { id: input.botId }, data: { updatedAt: now } });
     return { threadId: lastEvent.threadId, seq: lastEvent.seq, continuationRunId };
   });
 }
 
 async function createSteeringContinuation(
+  prisma: PrismaClient,
   tx: Prisma.TransactionClient,
   input: FinalizeRunBase,
 ): Promise<string | null> {
@@ -1230,7 +1232,7 @@ async function createSteeringContinuation(
       status: "queued",
     },
   });
-  const run = await tx.run.create({
+  const run = await createQueuedRun(prisma, tx, {
     data: {
       spaceId: input.spaceId,
       botId: input.botId,

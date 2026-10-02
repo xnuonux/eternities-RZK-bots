@@ -1,3 +1,4 @@
+import { configureQueuedRunTestDb } from "./queued-runs.test-helper.js";
 import type { RealtimeFanout } from "@rakazo/adapter-kit";
 import { encodeLoginSecret } from "@rakazo/contracts";
 import { describe, expect, it, vi } from "vitest";
@@ -166,7 +167,7 @@ describe("finalizeRun", () => {
       bot: { update: vi.fn(async () => ({})) },
     };
     const prisma = {
-      $transaction: vi.fn(async (callback: (client: typeof tx) => unknown) => callback(tx)),
+      $transaction: vi.fn(async (callback: (client: typeof tx) => unknown) => callback(configureQueuedRunTestDb(prisma, tx))),
     } as unknown as PrismaClient;
 
     await expect(
@@ -255,7 +256,7 @@ describe("finalizeRun", () => {
       bot: { update: vi.fn(async () => ({})) },
     };
     const prisma = {
-      $transaction: vi.fn(async (callback: (client: typeof tx) => unknown) => callback(tx)),
+      $transaction: vi.fn(async (callback: (client: typeof tx) => unknown) => callback(configureQueuedRunTestDb(prisma, tx))),
     } as unknown as PrismaClient;
 
     await expect(
@@ -1981,7 +1982,7 @@ describe("sendUserMessage", () => {
     };
     const prisma = {
       message: { findUnique: vi.fn().mockResolvedValue(null) },
-      $transaction: vi.fn(async (callback: (client: typeof tx) => unknown) => callback(tx)),
+      $transaction: vi.fn(async (callback: (client: typeof tx) => unknown) => callback(configureQueuedRunTestDb(prisma, tx))),
     } as unknown as PrismaClient;
 
     await expect(
@@ -2050,7 +2051,7 @@ describe("sendUserMessage", () => {
       },
     };
     const prisma = {
-      $transaction: vi.fn(async (callback: (client: typeof tx) => unknown) => callback(tx)),
+      $transaction: vi.fn(async (callback: (client: typeof tx) => unknown) => callback(configureQueuedRunTestDb(prisma, tx))),
     } as unknown as PrismaClient;
 
     await expect(
@@ -2106,7 +2107,7 @@ describe("sendUserMessage", () => {
     };
     const prisma = {
       message: { findUnique: vi.fn().mockResolvedValue(null) },
-      $transaction: vi.fn(async (callback: (client: typeof tx) => unknown) => callback(tx)),
+      $transaction: vi.fn(async (callback: (client: typeof tx) => unknown) => callback(configureQueuedRunTestDb(prisma, tx))),
     } as unknown as PrismaClient;
 
     await expect(
@@ -2158,7 +2159,7 @@ describe("sendUserMessage", () => {
     };
     const prisma = {
       message: { findUnique: vi.fn().mockResolvedValue(null) },
-      $transaction: vi.fn(async (callback: (client: typeof tx) => unknown) => callback(tx)),
+      $transaction: vi.fn(async (callback: (client: typeof tx) => unknown) => callback(configureQueuedRunTestDb(prisma, tx))),
     } as unknown as PrismaClient;
 
     await expect(
@@ -2215,7 +2216,7 @@ describe("sendUserMessage", () => {
       },
     };
     const prisma = {
-      $transaction: vi.fn(async (callback: (client: typeof tx) => unknown) => callback(tx)),
+      $transaction: vi.fn(async (callback: (client: typeof tx) => unknown) => callback(configureQueuedRunTestDb(prisma, tx))),
     } as unknown as PrismaClient;
 
     await expect(
@@ -2274,7 +2275,7 @@ describe("sendUserMessage", () => {
       },
     };
     const prisma = {
-      $transaction: vi.fn(async (callback: (client: typeof tx) => unknown) => callback(tx)),
+      $transaction: vi.fn(async (callback: (client: typeof tx) => unknown) => callback(configureQueuedRunTestDb(prisma, tx))),
     } as unknown as PrismaClient;
 
     await expect(

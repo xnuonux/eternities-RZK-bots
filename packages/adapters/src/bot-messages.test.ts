@@ -1,3 +1,4 @@
+import { configureQueuedRunTestDb } from "../../db/src/queued-runs.test-helper.js";
 import type { PrismaClient } from "@rakazo/db";
 import { describe, expect, it, vi } from "vitest";
 import {
@@ -81,7 +82,7 @@ function deps(
       if (options.uniqueConflictOnCommit) {
         throw Object.assign(new Error("Unique constraint failed"), { code: "P2002" });
       }
-      return fn(tx);
+      return fn(configureQueuedRunTestDb(prisma, tx));
     }),
   } as unknown as PrismaClient;
   return {

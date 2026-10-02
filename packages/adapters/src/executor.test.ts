@@ -1,3 +1,4 @@
+import { configureQueuedRunTestDb } from "../../db/src/queued-runs.test-helper.js";
 import type { MessageBlock } from "@rakazo/contracts";
 import { ONCE_ROUTINE_CRON } from "@rakazo/core";
 import type { PrismaClient } from "@rakazo/db";
@@ -1204,11 +1205,11 @@ describe("createRunExecutor", () => {
         findMany: vi.fn(async () => []),
       },
       $transaction: vi.fn(async (callback: (tx: unknown) => Promise<unknown>) =>
-        callback({
+        callback(configureQueuedRunTestDb(prisma, {
           routine: { updateMany },
           task: { create: taskCreate },
           run: { create: runCreate },
-        }),
+        })),
       ),
     } as unknown as PrismaClient;
     const executor = createRunExecutor({
@@ -1319,11 +1320,11 @@ describe("createRunExecutor", () => {
       thread: { findFirst },
       agentSkill: { findMany: vi.fn(async () => []) },
       $transaction: vi.fn(async (callback: (tx: unknown) => Promise<unknown>) =>
-        callback({
+        callback(configureQueuedRunTestDb(prisma, {
           routine: { updateMany: vi.fn(async () => ({ count: 1 })) },
           task: { create: taskCreate },
           run: { create: runCreate },
-        }),
+        })),
       ),
     } as unknown as PrismaClient;
     const executor = createRunExecutor({
@@ -1384,11 +1385,11 @@ describe("createRunExecutor", () => {
       thread: { findFirst },
       agentSkill: { findMany: vi.fn(async () => []) },
       $transaction: vi.fn(async (callback: (tx: unknown) => Promise<unknown>) =>
-        callback({
+        callback(configureQueuedRunTestDb(prisma, {
           routine: { updateMany: vi.fn(async () => ({ count: 1 })) },
           task: { create: taskCreate },
           run: { create: runCreate },
-        }),
+        })),
       ),
     } as unknown as PrismaClient;
     const executor = createRunExecutor({
@@ -1466,11 +1467,11 @@ description: Prepare standup notes
         ]),
       },
       $transaction: vi.fn(async (callback: (tx: unknown) => Promise<unknown>) =>
-        callback({
+        callback(configureQueuedRunTestDb(prisma, {
           routine: { updateMany: vi.fn(async () => ({ count: 1 })) },
           task: { create: taskCreate },
           run: { create: vi.fn(async () => ({ id: "run-1" })) },
-        }),
+        })),
       ),
     } as unknown as PrismaClient;
     const executor = createRunExecutor({
@@ -1519,11 +1520,11 @@ description: Prepare standup notes
         findMany: vi.fn(async () => []),
       },
       $transaction: vi.fn(async (callback: (tx: unknown) => Promise<unknown>) =>
-        callback({
+        callback(configureQueuedRunTestDb(prisma, {
           routine: { updateMany },
           task: { create: vi.fn(async () => ({ id: "task-1" })) },
           run: { create: vi.fn(async () => ({ id: "run-1", taskId: "task-1" })) },
-        }),
+        })),
       ),
     } as unknown as PrismaClient;
     const executor = createRunExecutor({
@@ -1577,11 +1578,11 @@ description: Prepare standup notes
       $transaction: vi.fn(async (callback: (tx: unknown) => Promise<unknown>) => {
         transactionCalls += 1;
         if (transactionCalls === 1) {
-          return callback({
+          return callback(configureQueuedRunTestDb(prisma, {
             routine: { updateMany: claimUpdateMany },
             task: { create: vi.fn(async () => ({ id: "task-1" })) },
             run: { create: vi.fn(async () => ({ id: "run-1", taskId: "task-1" })) },
-          });
+          }));
         }
         return callback({
           routine: { updateMany: restoreUpdateMany },

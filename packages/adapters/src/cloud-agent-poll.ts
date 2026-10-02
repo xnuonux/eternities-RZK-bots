@@ -305,7 +305,7 @@ async function finishPoll(
             status: "queued",
           },
         });
-        const run = await tx.run.create({
+        const run = await createQueuedRun(deps.prisma, tx, {
           data: {
             spaceId: agent.spaceId,
             botId: agent.botId,
@@ -337,3 +337,4 @@ async function finishPoll(
   }
   if (committed.nextPollAt) await enqueueCloudAgent(deps, agent.id, committed.nextPollAt);
 }
+import { createQueuedRun } from "@rakazo/db";

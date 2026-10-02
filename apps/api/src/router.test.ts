@@ -1,3 +1,4 @@
+import { configureQueuedRunTestDb } from "../../../packages/db/src/queued-runs.test-helper.js";
 import { RPCHandler } from "@orpc/server/fetch";
 import {
   COMPUTER_SCREEN_UNAVAILABLE,
@@ -1550,7 +1551,7 @@ describe("bot intro run", () => {
     const spaceModelPreference = { findFirst: vi.fn().mockResolvedValue(preference) };
     const deps = {
       prisma: {
-        $transaction: vi.fn(async (fn: (client: typeof tx) => unknown) => fn(tx)),
+        $transaction: vi.fn(async (fn: (client: typeof tx) => unknown) => fn(configureQueuedRunTestDb(deps.prisma, tx))),
         spaceModelPreference,
         deploymentSettings: { findUnique: vi.fn().mockResolvedValue(null) },
       },
@@ -2973,7 +2974,7 @@ describe("threads.endCall", () => {
           .mockResolvedValue({ id: "bot-1", thread: { id: "thread-1" }, computer: null }),
       },
       taughtSkill: { findFirst: vi.fn().mockResolvedValue(null) },
-      $transaction: vi.fn(async (run: (client: typeof tx) => unknown) => run(tx)),
+      $transaction: vi.fn(async (run: (client: typeof tx) => unknown) => run(configureQueuedRunTestDb(prisma, tx))),
     } as unknown as PrismaClient;
     const enqueue = vi.fn().mockResolvedValue(undefined);
     const deps = {

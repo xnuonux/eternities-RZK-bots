@@ -95,6 +95,7 @@ import {
   appendEventInTransaction,
   createSpaceForMember,
   createThreadMessageInTransaction,
+  createQueuedRun,
   effectiveMemoryScope,
   findDefaultModelCredential,
   findModelCredential,
@@ -288,6 +289,7 @@ import {
   tryCompleteConnectionWithCode,
 } from "./run-secret.js";
 import { withRuntimeCleanup } from "./runtime-stream.js";
+import { selectRuntimeModel } from "./runtime-model-selection.js";
 import {
   cancelScheduleFromTool,
   compactScheduleInput,
@@ -1077,7 +1079,7 @@ export function createRunExecutor(deps: ExecutorDeps) {
             status: "queued",
           },
         });
-        return tx.run.create({
+        return createQueuedRun(deps.prisma, tx, {
           data: {
             spaceId: routine.spaceId,
             botId: bot.id,
@@ -1311,8 +1313,8 @@ export function createRunExecutor(deps: ExecutorDeps) {
             `Run requested agent runtime "${requestedRuntimeId}" but this worker only has "${runtime.describe().id}"`,
           );
         }
-        // Slice 1 binds on first execution. Queue-time binding follows once all run producers
-        // are centralized behind one creation helper.
+        // Compatibility for rows queued before queue-time binding was introduced.
+        // All current producers persist a concrete runtime through createQueuedRun.
         if (run.runtimeId == null) {
           const boundRuntimeId = runtime.describe().id;
           const bound = await deps.prisma.run.updateMany({
@@ -1504,13 +1506,15 @@ export function createRunExecutor(deps: ExecutorDeps) {
         }
         const runDeployment = deps.deploymentModelKey ? resolveDeploymentModel() : null;
         const runtimeFallback = runtimeFallbackModel(runtime);
-        const selected = selectConfiguredModel({
-          bot,
-          overrideCredential,
-          defaultCredential,
-          settings,
-          deployment: runDeployment,
-        });
+        const selected = selectRuntimeModel(runtime, () =>
+          selectConfiguredModel({
+            bot,
+            overrideCredential,
+            defaultCredential,
+            settings,
+            deployment: runDeployment,
+          }),
+        );
         const { credential, thinkingLevel } = selected;
         const runModelProvider = selected.provider ?? runtimeFallback?.provider;
         const runModelId = selected.id ?? runtimeFallback?.id;

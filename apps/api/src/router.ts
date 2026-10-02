@@ -143,6 +143,7 @@ import {
   claimEmptySpaceDeletionForMember,
   createExternalConversationRepos,
   createGroupRepos,
+  createQueuedRun,
   createRepos,
   createSpaceForMember,
   createThreadMessageInTransaction,
@@ -611,7 +612,7 @@ export async function enqueueBotIntroRun(deps: RouterDeps, actor: Actor, bot: Bo
         status: "queued",
       },
     });
-    return tx.run.create({
+    return createQueuedRun(deps.prisma, tx, {
       data: {
         spaceId: actor.spaceId,
         botId: bot.id,
@@ -1927,7 +1928,7 @@ export function createRouter(deps: RouterDeps) {
                 status: "queued",
               },
             });
-            run = await tx.run.create({
+            run = await createQueuedRun(deps.prisma, tx, {
               data: {
                 spaceId: context.actor.spaceId,
                 botId,
@@ -2011,7 +2012,7 @@ export function createRouter(deps: RouterDeps) {
                 status: "queued",
               },
             });
-            const run = await tx.run.create({
+            const run = await createQueuedRun(deps.prisma, tx, {
               data: {
                 spaceId: context.actor.spaceId,
                 botId,
@@ -3082,7 +3083,7 @@ export function createRouter(deps: RouterDeps) {
                 status: "queued",
               },
             });
-            return tx.run.create({
+            return createQueuedRun(deps.prisma, tx, {
               data: {
                 spaceId: context.actor.spaceId,
                 botId: bot.id,

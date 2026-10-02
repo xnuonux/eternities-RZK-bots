@@ -12,6 +12,12 @@ SandboxProvider workspace <-> AgentHomeStore <-> Rakazo-owned DATA_DIR
 
 Pi runs in the Rakazo API/worker process. It is not installed in, or executed by, E2B. The built-in tools are ordinary Pi tools, not Claude- or MCP-specific tools, so any model exposed through Pi can call them. Screen operation still requires a model that can accept image tool results and reason about screenshots.
 
+Main Bot turns may instead use a configured external engine through the
+[universal agent runtime](universal-agent-runtime.md). That engine delegates the
+same host tools through the executor; it does not provision a second computer or
+create a second action journal. The external stdio peer is operator trusted and is
+not itself an OS sandbox. Computer-provider containment still applies separately.
+
 ## Computer contract
 
 Each workspace gets one Team Computer by default. Bots share its files and installed tools. Each Team bot starts in `bots/<bot-id>/`, while deliberately shared work belongs in `shared/`. These folders organize work but are not security boundaries: every Team bot can access the full Team workspace. A bot can instead use a Private Computer, where the whole workspace is its home.

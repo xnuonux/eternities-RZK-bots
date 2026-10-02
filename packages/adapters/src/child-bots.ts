@@ -16,6 +16,7 @@ import {
   computerScopeKey,
   createRepos,
   createThreadMessageInTransaction,
+  createQueuedRun,
   expireComputerExecutionLeases,
   type Prisma,
   type PrismaClient,
@@ -173,7 +174,7 @@ async function ensureSpawnRun(
           status: "queued",
         },
       });
-      return tx.run.create({
+      return createQueuedRun(prisma, tx, {
         data: {
           spaceId: input.spaceId,
           botId: input.botId,

@@ -12,6 +12,7 @@ import {
 import {
   appendEventInTransaction,
   createThreadMessageInTransaction,
+  createQueuedRun,
   type PrismaClient,
   withTransactionRetry,
 } from "@rakazo/db";
@@ -242,7 +243,7 @@ export async function messageBot(
             status: "queued",
           },
         });
-        const nextRun = await tx.run.create({
+        const nextRun = await createQueuedRun(deps.prisma, tx, {
           data: {
             spaceId: run.spaceId,
             botId: target.id,

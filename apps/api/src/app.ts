@@ -4,6 +4,7 @@ import { ORPCError, onError } from "@orpc/server";
 import { RPCHandler } from "@orpc/server/fetch";
 import type {
   AgentRuntime,
+  AgentRuntimeResolver,
   JobPublisher,
   ManagedConnectorProvider,
   MessagingSurface,
@@ -22,6 +23,7 @@ import {
   ChatSdkMessagingSurface,
   CodexCatalogCache,
   ComposioConnector,
+  createAgentRuntimes,
   createBackgroundJobHandlers,
   createCloudAgentConnection,
   createConnectorStack,
@@ -49,7 +51,6 @@ import {
   McpConnector,
   McpOAuthBroker,
   messagingPlatformsFromEnv,
-  PiAgentRuntime,
   PiOAuthLogins,
   PipedreamConnector,
   PostgresRealtimeFanout,
@@ -59,7 +60,6 @@ import {
   reconcileCloudAgents,
   reconcileComputerUpdates,
   removePiUserSessions,
-  ScriptedAgentRuntime,
   SmtpEmailProvider,
   SpaceMemoryProviderResolver,
   sandboxProviderOptionsFromEnv,
@@ -70,6 +70,7 @@ import { signupAllowlistBootUpdate, signupPolicyFromEnv } from "@rakazo/core";
 import type { Pool, PrismaClient } from "@rakazo/db";
 import {
   createDb,
+  configureRunCreation,
   createPool,
   createThreadEvents,
   parsePositiveInteger,
@@ -137,12 +138,14 @@ export interface AppHandles {
   email?: TransactionalEmailProvider;
   executor: ReturnType<typeof createRunExecutor>;
   runtime: AgentRuntime;
+  runtimes: AgentRuntimeResolver;
   stop: () => Promise<void>;
 }
 
 export async function createApp(
   overrides: Partial<AppEnv> & {
     prisma?: PrismaClient;
+    agentRuntimes?: AgentRuntime[];
     realtime?: RealtimeFanout;
     sandbox?: SandboxProvider;
     composio?: ComposioProvider;
@@ -155,6 +158,7 @@ export async function createApp(
 ): Promise<AppHandles> {
   const {
     prisma: prismaOverride,
+    agentRuntimes,
     realtime: realtimeOverride,
     sandbox: sandboxOverride,
     composio: composioOverride,
@@ -342,12 +346,13 @@ export async function createApp(
   const connector = stack.destination;
   await connector.start();
   integrationSettings.warmDirectories();
-  const runtime =
-    env.agentRuntime === "scripted"
-      ? new ScriptedAgentRuntime()
-      : new PiAgentRuntime({
-          sessionRoot: env.piSessionRecording ? piSessionsRoot(env.dataDir) : undefined,
-        });
+  const { runtime, runtimes } = createAgentRuntimes({
+    defaultRuntimeId: env.agentRuntime,
+    externalRuntimeConfig: env.agentRuntimeConfig,
+    sessionRoot: env.piSessionRecording ? piSessionsRoot(env.dataDir) : undefined,
+    additional: agentRuntimes,
+  });
+  configureRunCreation(prisma, runtimes);
   const notifications = new ExpoPushProvider(env.dataDir);
   const auth = createAuth(prisma, {
     secret: env.authSecret,
@@ -397,6 +402,7 @@ export async function createApp(
   const executor = createRunExecutor({
     prisma,
     runtime,
+    runtimes,
     codexCatalog,
     sandbox,
     memory,
@@ -871,6 +877,7 @@ export async function createApp(
     email,
     executor,
     runtime,
+    runtimes,
     stop: async () => {
       // Abort in-flight continueRun boot waits before draining jobs so stop() cannot sit
       // on waitForComputerReady for the full boot-wait window during shared Postgres journeys.

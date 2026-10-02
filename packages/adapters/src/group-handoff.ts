@@ -4,6 +4,7 @@ import { botMessageHopExhausted, nextBotMessageHop, renderGroupMembersContext } 
 import {
   appendEventInTransaction,
   createThreadMessageInTransaction,
+  createQueuedRun,
   IsolationError,
   lockOwnedGroup,
   type PrismaClient,
@@ -143,7 +144,7 @@ export async function handoffToGroupBot(
         status: "queued",
       },
     });
-    const nextRun = await tx.run.create({
+    const nextRun = await createQueuedRun(deps.prisma, tx, {
       data: {
         spaceId: run.spaceId,
         botId: targetId,

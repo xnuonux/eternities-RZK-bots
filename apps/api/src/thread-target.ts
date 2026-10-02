@@ -27,6 +27,7 @@ import {
   createGroupRepos,
   createRepos,
   createThreadMessageInTransaction,
+  createQueuedRun,
   expireComputerExecutionLeases,
   IsolationError,
   lockOwnedGroup,
@@ -774,7 +775,7 @@ export async function sendThreadMessage(
             status: "queued",
           },
         });
-        const run = await tx.run.create({
+        const run = await createQueuedRun(deps.prisma, tx, {
           data: {
             spaceId: actor.spaceId,
             botId: target.botId,
@@ -921,7 +922,7 @@ export async function sendThreadMessage(
             status: "queued",
           },
         });
-        const run = await tx.run.create({
+        const run = await createQueuedRun(deps.prisma, tx, {
           data: {
             spaceId: actor.spaceId,
             botId,

@@ -1,3 +1,4 @@
+import { configureQueuedRunTestDb } from "../../db/src/queued-runs.test-helper.js";
 import type { PrismaClient, ThreadEvents } from "@rakazo/db";
 import { describe, expect, it, vi } from "vitest";
 import {
@@ -167,7 +168,7 @@ function createDeps(
     },
     user: { findUnique: vi.fn(async () => ({ id: "user-1", name: "Alice Owner" })) },
     thread: { findFirst: vi.fn(async () => ({ id: "thread-2" })) },
-    $transaction: vi.fn(async (fn: (tx: unknown) => Promise<unknown>) => fn(txMock)),
+    $transaction: vi.fn(async (fn: (tx: unknown) => Promise<unknown>) => fn(configureQueuedRunTestDb(prisma, txMock))),
     $queryRaw: txMock.$queryRaw,
   };
   // connectAgent claim+invite runs on the transaction client.

@@ -42,6 +42,7 @@ import {
 } from "@rakazo/core";
 import {
   type createRepos,
+  createQueuedRun,
   expireComputerExecutionLeases,
   IsolationError,
   type PrismaClient,
@@ -518,26 +519,28 @@ export function createTaughtSkillsService(deps: TaughtSkillsDeps) {
       const playbook = parsePlaybook(skill.playbook);
       const taskPrompt =
         prompt ?? formatSkillRunPrompt(skill.name || skill.goal.slice(0, 80), playbook, true);
-      const task = await deps.prisma.task.create({
-        data: {
-          spaceId: actor.spaceId,
-          botId: bot.id,
-          threadId: bot.thread.id,
-          userId: actor.userId,
-          prompt: taskPrompt,
-          status: "queued",
-        },
-      });
-      const run = await deps.prisma.run.create({
-        data: {
-          spaceId: actor.spaceId,
-          botId: bot.id,
-          threadId: bot.thread.id,
-          taskId: task.id,
-          userId: actor.userId,
-          status: "queued",
-          trigger: "skill",
-        },
+      const run = await deps.prisma.$transaction(async (tx) => {
+        const task = await tx.task.create({
+          data: {
+            spaceId: actor.spaceId,
+            botId: bot.id,
+            threadId: bot.thread.id,
+            userId: actor.userId,
+            prompt: taskPrompt,
+            status: "queued",
+          },
+        });
+        return createQueuedRun(deps.prisma, tx, {
+          data: {
+            spaceId: actor.spaceId,
+            botId: bot.id,
+            threadId: bot.thread.id,
+            taskId: task.id,
+            userId: actor.userId,
+            status: "queued",
+            trigger: "skill",
+          },
+        });
       });
       await deps.jobs.enqueue(runContinueJob(run.id));
       return { runId: run.id };

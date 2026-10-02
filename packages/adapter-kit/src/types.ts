@@ -497,6 +497,8 @@ export interface AgentRuntimeCapabilities {
   compaction: boolean;
   tools: boolean;
   scripted: boolean;
+  /** Omitted means host-owned model selection/auth, for existing implementations. */
+  modelAuth?: "host" | "runtime";
 }
 
 export interface VoiceInfo {

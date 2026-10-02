@@ -1,4 +1,4 @@
-import { AgentRuntimeRegistry, type JobPublisher, type JobWorkerHost } from "@rakazo/adapter-kit";
+import type { JobPublisher, JobWorkerHost } from "@rakazo/adapter-kit";
 import { ComposioConnector, IntegrationProviderSettings } from "@rakazo/adapters";
 import { loadRootEnv } from "@rakazo/core/node/load-root-env";
 
@@ -7,6 +7,7 @@ loadRootEnv();
 import {
   ChatSdkMessagingSurface,
   CodexCatalogCache,
+  createAgentRuntimes,
   createBackgroundJobHandlers,
   createCloudAgentConnection,
   createConnectorStack,
@@ -33,7 +34,6 @@ import {
   McpOAuthBroker,
   messagingEnvFromProcess,
   messagingPlatformsFromEnv,
-  PiAgentRuntime,
   PipedreamConnector,
   PostgresRealtimeFanout,
   pipedreamConfigFromEnv,
@@ -42,13 +42,13 @@ import {
   resolveDeploymentModel,
   resolvePiSessionRoot,
   resolveSandboxProvider,
-  ScriptedAgentRuntime,
   SpaceMemoryProviderResolver,
   sandboxProviderOptionsFromEnv,
 } from "@rakazo/adapters";
 import { resolveEncryptionKey, resolveSupervisorToken } from "@rakazo/core";
 import {
   createDb,
+  configureRunCreation,
   createThreadEvents,
   isTooManyDatabaseConnections,
   parsePositiveInteger,
@@ -80,12 +80,12 @@ async function main() {
     runSecretWriter: createRunSecretWriter(secrets),
   });
   const dataDir = process.env.DATA_DIR ?? "./data";
-  const piRuntime = new PiAgentRuntime({ sessionRoot: resolvePiSessionRoot(dataDir) });
-  const scriptedRuntime =
-    process.env.AGENT_RUNTIME === "scripted" ? new ScriptedAgentRuntime() : undefined;
-  const runtime = scriptedRuntime ?? piRuntime;
-  const runtimes = new AgentRuntimeRegistry(runtime.describe().id).register(piRuntime);
-  if (scriptedRuntime) runtimes.register(scriptedRuntime);
+  const { runtime, runtimes } = createAgentRuntimes({
+    defaultRuntimeId: process.env.AGENT_RUNTIME ?? "pi",
+    externalRuntimeConfig: process.env.AGENT_RUNTIME_CONFIG,
+    sessionRoot: resolvePiSessionRoot(dataDir),
+  });
+  configureRunCreation(prisma, runtimes);
   // Same resolver the API uses, so both processes agree on provider, model and key.
   const { key: deploymentModelKey } = resolveDeploymentModel();
   const sandboxProvider = resolveSandboxProvider(process.env);
