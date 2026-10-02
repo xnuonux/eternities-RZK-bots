@@ -20,7 +20,7 @@ function host(method, params) {
     write({ id, method, params: { sessionId, ...params } });
   });
 }
-const tool = (name, args, toolCallId = "call") => host("_rakazo/tool", { name, args, toolCallId });
+const tool = (name, args, toolCallId = "call", operation) => host("_rakazo/tool", { name, args, toolCallId, ...(operation ? { operation } : {}) });
 
 async function turn(params) {
   if (mode === "death") { process.exit(0); }
@@ -28,6 +28,36 @@ async function turn(params) {
   if (mode === "oversize") { process.stdout.write("x".repeat(2_000_000)); return; }
   if (mode === "quiet" || mode === "cancel-unknown") return;
   if (mode === "native") await host("fs/read_text_file", { path: "/denied" });
+  else if (mode.startsWith("operation-")) {
+    const envelope = JSON.parse(params.prompt[0].text);
+    const task = JSON.parse(envelope.prompt);
+    const operation = task.operation ?? { id: "operation-opaque-1", actionDigest: "a".repeat(64) };
+    if (mode === "operation-omitted") await tool("browser_act", { actions: [] });
+    else if (mode === "operation-changed-call") {
+      await tool("browser_act", { actions: [] }, "call", operation);
+      await tool("browser_act", { actions: [] }, "call", { ...operation, actionDigest: "b".repeat(64) });
+    } else {
+      const reconciled = (await host("_rakazo/reconcile-tool-operation", {
+        name: "browser_act", operation, toolCallId: "original-reconcile",
+      })).result;
+      if (reconciled.status === "missing") {
+        const nav = (await tool("browser_navigate", { url: task.url }, "navigate")).result;
+        if (nav.error || nav.fallback) throw new Error("navigation unconfirmed");
+        const snapshot = (await tool("browser_snapshot", {}, "snapshot")).result;
+        const input = snapshot.elements.find((element) => element.role === "textbox");
+        const button = snapshot.elements.find((element) => element.role === "button");
+        if (!input || !button) throw new Error("fixture controls missing");
+        const args = { actions: [
+          { kind: "fill", ref: input.ref, text: "disposable task" },
+          { kind: "click", ref: button.ref },
+        ] };
+        const result = await tool("browser_act", args, "complete-task", operation);
+        if (result.result.ok !== true || result.result.completed !== 2) throw new Error("actions unconfirmed");
+        await tool("browser_act", args, "complete-task-retry", operation);
+      } else if (reconciled.status !== "completed") throw new Error("operation held");
+      text("Original operation receipt reconciled.");
+    }
+  }
   else if (mode === "permission") await host("session/request_permission", { options: [] });
   else if (mode === "tool-limit") {
     await tool("mutate", { value: 1 }, "first");

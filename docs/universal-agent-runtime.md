@@ -118,6 +118,70 @@ uncertain tool outcome stops the turn without automatic redispatch. Successful
 host calls, waits for outstanding host work, and closes the peer. Missing cancel
 acknowledgment or unconfirmed process termination remains an error/unknown outcome.
 
+## Original action recovery
+
+An engine with durable action selection can supply an original operation separately
+from its product Run, provider call id and browser references. It must preserve the
+operation id and the SHA256 of its immutable selected action (including target and
+source authority). This digest identifies the selection; it grants no permission
+and the host does not infer action semantics from an opaque digest.
+
+The trusted `AgentRunRequest` has an optional `reconcileToolOperation(name,
+operation)` callback. Call it before obtaining replacement browser references.
+It reads the existing `ExternalEffect` authority without creating or claiming a
+row. It returns `missing`, `completed` with the stored result, or `held` with a
+reason. `missing` is not approval; `held` must not dispatch. Claimed/executing and
+uncertain results remain unknown, including an uncertain result stored in a
+completed row. Missing completed receipts, denied actions and changed bindings
+also hold.
+
+Pass `{ id: "operation-opaque-1", actionDigest: "<64 lowercase hex characters>" }`
+as the fifth `executeTool` argument after the existing route. The production
+executor currently supports original identities for offered `browser_act` and
+`computer_act` tools. Its stable operation key does not contain DOM refs, provider
+call ids, tool names or action digests: changed bindings find the original row and
+are rejected. Runtime, task, bot, provider/version and computer/mode/resource
+bindings are host-derived and saved in that same effect's request envelope.
+The provider receives the original `operationId` while context retains product
+`runId` and the existing screen lease. No additional identity or effect store is
+created.
+
+Approval, review, catalog availability, the Run lease and computer lease still
+gate execution. The executor rechecks current runtime/computer/teaching authority
+before reconciliation and dispatch, including the current task, bot and space
+attached to the Run. A resumed approval executes its saved
+transport arguments; replacement refs cannot authorize different arguments.
+`pending_approval` reconciliation therefore holds. A trusted continuation may
+submit the exact saved arguments and identity through `executeTool`; it must not
+obtain new refs and reinterpret the approval. Each original action claims the
+existing effect row even under an allow policy. A failed claim or interruption
+cannot open a replacement effect key.
+
+For ACP, `session/new` advertises `operations.version: 1` and the reconciliation
+method when the callback is available. `_rakazo/reconcile-tool-operation` takes
+the usual session id, offered tool name and bounded `toolCallId`, plus `operation`.
+It returns `{ result: <reconciliation> }`. A held result stops the runtime before
+completion. `_rakazo/tool` accepts the same optional `operation` object next to
+`args`. Reconciliation calls consume the same host-call budget and reused call
+ids must retain their complete method/input fingerprint.
+
+Set operator-owned `requireToolOperations: true` in an external runtime's existing
+configuration to require identity on browser/computer effects. Its runtime
+capability is `originalToolOperations: true`; the executor independently enforces
+that capability. Omitted metadata cannot fall back to an args-derived key in that
+mode. Existing engines retain their original behavior when the mode is omitted.
+This mode adds no shell, browser target or account permission. The private caller
+must still bind its canonical action/target authority and narrow offered tools.
+
+The deduplication scope is one original product Run. A new product Run has a new
+key namespace; this protocol does not provide cross-Run native-operation custody.
+That boundary requires the native bridge's existing canonical operation guard.
+Provider/runtime descriptors bind ids and declared versions; replacing code or
+configuration under the same id/version is not a verified runtime-generation
+change. The current contract has no runtime configuration revision. Lease checks
+and physical dispatch are asynchronous, and native custody/effect storage are
+separate, non-atomic stores. These boundaries require their own qualification.
+
 ## Computer and process containment
 
 ACP stdio is an operator-trusted process interface. It does not restrict the peer's
@@ -163,6 +227,37 @@ captures the visible result. `browser-demo.json` names fixtures and evidence lim
 `cleanup.json` records owned browser/helper PIDs, server closure and profile removal.
 Output defaults to ignored `.tmp/runtime-browser-demo`; `--output` can select a
 private receipt directory. No existing browser profile, account or model is used.
+
+Original-operation module conformance runs without package installation:
+
+```text
+node --experimental-transform-types scripts/operation-runtime-conformance.mjs
+```
+
+For fresh browser and host process restart conformance, choose a new output
+directory; an existing directory is refused:
+
+```text
+node --experimental-transform-types scripts/operation-browser-demo.mjs --browser-command <absolute-browser-executable> --python-command <absolute-python-executable> --output <fresh-absolute-output-directory>
+```
+
+This fixture uses the production configured ACP engine, original-operation helper,
+queue factory and browser provider. A completed original operation produces one
+local server receipt despite renewed DOM refs and host/Chrome process restart.
+A durable claimed cutpoint, changed runtime and lost current authority stop before
+more browser work. A separate null arm uses the existing args-derived key and
+performs two local effects after renewed refs. That null is a generic fixture
+observation, not a claim that a canonical native body or production worker replayed
+an operation. Queue transactions, JSON-backed effect persistence, exact allow
+policy/current authority, action digest and peer are fixtures; browser actions,
+server consequences, snapshots and process restart are real. The claimed cutpoint
+is an ordered fixture interruption, not an abrupt OS crash. All evidence levels
+and owned-process cleanup are recorded in its output.
+
+The actual executor integration is present in source but this dependency-free
+route does not execute `createRunExecutor`, the full `run.continue` graph, Prisma
+transactions or PostgreSQL. Those require the installed application dependencies,
+generated Prisma client and an authorized disposable database environment.
 
 This demonstration qualifies the configured runtime/browser contract. It does not
 demonstrate a Docker computer, persistent production database, actual model

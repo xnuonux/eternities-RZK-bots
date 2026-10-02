@@ -404,6 +404,21 @@ export interface AgentRunModel {
   };
 }
 
+/** Original, caller-owned action identity; browser refs and provider call IDs are transport only. */
+export interface AgentToolOperation {
+  id: string;
+  /** SHA256 of the immutable selected action, including its target and source authority. */
+  actionDigest: string;
+}
+
+export type AgentToolOperationReconciliation =
+  | { status: "missing" }
+  | { status: "completed"; result: unknown }
+  | {
+      status: "held";
+      reason: "binding_changed" | "authority_unavailable" | "pending_approval" | "outcome_unknown" | "denied" | "incomplete_receipt";
+    };
+
 export interface AgentRunRequest {
   botId: string;
   threadId: string;
@@ -432,11 +447,17 @@ export interface AgentRunRequest {
   allowSilentEmpty?: boolean;
   /** Contextual fallback when a non-silent run produces no written response. */
   emptyResponseText?: string;
+  /** Reconcile an original action before obtaining replacement browser refs. Missing is not permission. */
+  reconcileToolOperation?: (
+    name: string,
+    operation: AgentToolOperation,
+  ) => Promise<AgentToolOperationReconciliation>;
   executeTool?: (
     name: string,
     args: Record<string, unknown>,
     executionId: string,
     route?: ConnectorRoute,
+    operation?: AgentToolOperation,
   ) => Promise<unknown>;
   /** Called after a tool returns; implementations must not persist raw result contents. */
   onToolCompleted?: (completion: AgentToolCompletion) => Promise<void> | void;
@@ -499,6 +520,8 @@ export interface AgentRuntimeCapabilities {
   scripted: boolean;
   /** Omitted means host-owned model selection/auth, for existing implementations. */
   modelAuth?: "host" | "runtime";
+  /** Require original action identity for computer/browser effects; omission cannot open a legacy key. */
+  originalToolOperations?: boolean;
 }
 
 export interface VoiceInfo {

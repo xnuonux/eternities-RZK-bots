@@ -10,6 +10,7 @@ interface ExternalRuntimeConfig extends AcpStdioOptions {
   transport: "acp-stdio";
   maxToolCalls?: number;
   cancelTimeoutMs?: number;
+  requireToolOperations?: boolean;
 }
 
 function invalid(): never {
@@ -42,8 +43,10 @@ function parseConfig(value: unknown): ExternalRuntimeConfig[] {
     const fields = [
       "id", "transport", "command", "args", "cwd", "env", "timeoutMs",
       "maxMessageBytes", "maxToolCalls", "cancelTimeoutMs",
+      "requireToolOperations",
     ];
     if (Object.keys(runtime).some((key) => !fields.includes(key))) invalid();
+    if (runtime.requireToolOperations !== undefined && typeof runtime.requireToolOperations !== "boolean") invalid();
     if (
       typeof runtime.id !== "string" || !/^[a-zA-Z0-9_.:-]{1,128}$/.test(runtime.id) ||
       ids.has(runtime.id)
@@ -82,6 +85,7 @@ function parseConfig(value: unknown): ExternalRuntimeConfig[] {
       maxMessageBytes: integer(runtime.maxMessageBytes, 4_096, 4_194_304),
       maxToolCalls: integer(runtime.maxToolCalls, 1, 1_000),
       cancelTimeoutMs: integer(runtime.cancelTimeoutMs, 1, 30_000),
+      requireToolOperations: runtime.requireToolOperations as boolean | undefined,
     };
   });
 }
@@ -101,12 +105,13 @@ export function loadExternalAgentRuntimes(configFile?: string): AgentRuntime[] {
     invalid();
   }
   // Reading config does not start a process. Each selected Run owns its peer.
-  return runtimes.map(({ id, maxToolCalls, cancelTimeoutMs, ...connection }) =>
+  return runtimes.map(({ id, maxToolCalls, cancelTimeoutMs, requireToolOperations, ...connection }) =>
     new AcpAgentRuntime({
       id,
       cwd: connection.cwd,
       maxToolCalls,
       cancelTimeoutMs,
+      requireToolOperations,
       connect: (handlers) => connectAcpStdio(connection, handlers),
     }),
   );

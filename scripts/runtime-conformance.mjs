@@ -74,6 +74,49 @@ function peer(mode, hooks = {}) {
   return { runtime, ready: ready.promise };
 }
 
+test("required original-operation runtime rejects omitted identity before any host effect", async () => {
+  let effects = 0;
+  const { runtime } = peer("operation-omitted", { options: { requireToolOperations: true } });
+  await assert.rejects(collect(runtime.run({ ...request, prompt: "{}",
+    tools: [{ name: "browser_act", inputSchema: { type: "object" } }],
+    executeTool: async () => { effects++; return { ok: true }; },
+  })), /Original operation/);
+  assert.equal(effects, 0);
+});
+
+test("ACP original-operation reconciliation precedes reference acquisition and reuses an applied result", async () => {
+  const calls = [];
+  const { runtime } = peer("operation-browser");
+  const events = await collect(runtime.run({ ...request, prompt: "{}",
+    tools: ["browser_act", "browser_navigate", "browser_snapshot"].map((name) => ({ name, inputSchema: {} })),
+    reconcileToolOperation: async (name, operation) => {
+      calls.push({ name, operation }); return { status: "completed", result: { ok: true, completed: 2 } };
+    },
+    executeTool: async () => { throw new Error("No browser reference or action may be requested"); },
+  }));
+  assert.equal(calls.length, 1); assert.equal(calls[0].operation.id, "operation-opaque-1");
+  assert.equal(events.at(-1).type, "done");
+});
+
+test("ACP held original operation stops before browser tools and completion", async () => {
+  const { runtime } = peer("operation-browser"); let effects = 0;
+  await assert.rejects(collect(runtime.run({ ...request, prompt: "{}",
+    tools: [{ name: "browser_act", inputSchema: {} }],
+    reconcileToolOperation: async () => ({ status: "held", reason: "outcome_unknown" }),
+    executeTool: async () => { effects++; },
+  })), /operation held/);
+  assert.equal(effects, 0);
+});
+
+test("ACP changed original action under one call id cannot invoke a second host effect", async () => {
+  const { runtime } = peer("operation-changed-call"); const operations = [];
+  await assert.rejects(collect(runtime.run({ ...request, prompt: "{}",
+    tools: [{ name: "browser_act", inputSchema: {} }],
+    executeTool: async (_name, _args, _id, _route, operation) => { operations.push(operation); return { ok: true }; },
+  })), /different input/);
+  assert.deepEqual(operations, [{ id: "operation-opaque-1", actionDigest: "a".repeat(64) }]);
+});
+
 test("queue selection stays bound after Bot and deployment default change", async () => {
   const db = fixtureDb("engine-a");
   const registry = new AgentRuntimeRegistry("engine-a").register(engine("engine-a")).register(engine("engine-b"));

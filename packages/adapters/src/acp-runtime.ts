@@ -5,6 +5,7 @@ import type {
 import { stableJsonValue } from "@rakazo/core/node/approval-effect-key";
 import type { AcpConnection, AcpHandlers } from "./acp-stdio.js";
 import { isToolPauseResult } from "./approval-effect.js";
+import { validateToolOperation } from "./tool-operation.js";
 
 export const ACP_HOST_TOOLS = "rakazo.dev/host-tools";
 
@@ -23,6 +24,8 @@ export interface AcpRuntimeOptions {
   cancelTimeoutMs?: number;
   /** Distinct delegated calls per turn; repeated call IDs reuse the prior result. */
   maxToolCalls?: number;
+  /** Operator-owned mode for engines that retain original action identities across restart. */
+  requireToolOperations?: boolean;
 }
 
 /** ACP v1 text subset with explicit host tool delegation; no native tool authority. */
@@ -34,6 +37,9 @@ export class AcpAgentRuntime implements AgentRuntime {
   constructor(private readonly options: AcpRuntimeOptions) {
     if (!options.id.trim() || options.id !== options.id.trim()) throw new Error("ACP runtime id is required");
     if (!path.isAbsolute(options.cwd)) throw new Error("ACP working directory must be absolute");
+    if (options.requireToolOperations !== undefined && typeof options.requireToolOperations !== "boolean") {
+      throw new Error("ACP original operation mode must be boolean");
+    }
     if (options.maxToolCalls !== undefined && (!Number.isInteger(options.maxToolCalls) ||
         options.maxToolCalls < 1 || options.maxToolCalls > 1_000)) {
       throw new Error("ACP tool call limit must be between 1 and 1000");
@@ -46,6 +52,7 @@ export class AcpAgentRuntime implements AgentRuntime {
       capabilities: {
         streaming: true, compaction: false, tools: true, scripted: false,
         modelAuth: "runtime" as const,
+        ...(this.options.requireToolOperations ? { originalToolOperations: true } : {}),
       },
     };
   }
@@ -111,18 +118,25 @@ export class AcpAgentRuntime implements AgentRuntime {
     const handlers: AcpHandlers = {
       request: async (method, params) => {
         try {
-          if (method !== "_rakazo/tool" || !acceptingTools || params.sessionId !== sessionId) {
+          const reconcile = method === "_rakazo/reconcile-tool-operation";
+          if ((method !== "_rakazo/tool" && !reconcile) || !acceptingTools || params.sessionId !== sessionId) {
             throw new Error("ACP client request denied");
           }
           const id = params.toolCallId;
           if (typeof id !== "string" || !/^[a-zA-Z0-9_.:-]{1,128}$/.test(id)) throw new Error("Invalid ACP tool call id");
           const name = params.name;
           if (typeof name !== "string") throw new Error("Invalid ACP tool name");
-          const args = record(params.args);
+          const args = reconcile ? {} : record(params.args);
+          const operation = params.operation === undefined ? undefined : validateToolOperation(params.operation);
+          if (!reconcile && this.options.requireToolOperations &&
+              (name === "browser_act" || name === "computer_act") && !operation) {
+            throw new Error("Original operation identity required");
+          }
+          if (reconcile && (!operation || !request.reconcileToolOperation)) throw new Error("Original operation reconciliation unavailable");
           const matches = request.tools.filter((tool) => tool.name === name);
           if (matches.length !== 1 || !request.executeTool) throw new Error("ACP tool is not in the host catalog");
           const tool = matches[0]!;
-          const fingerprint = stableJsonValue({ name, args });
+          const fingerprint = stableJsonValue({ method, name, args, ...(operation ? { operation } : {}) });
           const previous = calls.get(id);
           if (previous) {
             if (previous.fingerprint !== fingerprint) throw new Error("ACP tool call id reused with different input");
@@ -135,10 +149,19 @@ export class AcpAgentRuntime implements AgentRuntime {
           const result = hostWork.then(async () => {
             signal.throwIfAborted();
             if (paused || failure) throw new Error("ACP host tool execution stopped");
+            if (reconcile) {
+              const output = await request.reconcileToolOperation!(name, operation!);
+              if (output.status === "held") throw new Error(`Original tool operation held: ${output.reason}`);
+              return output;
+            }
             push({ type: "tool", name, args, executionId });
             const started = Date.now();
             let output: unknown;
-            try { output = await request.executeTool!(name, args, executionId, tool.route); }
+            try {
+              output = operation
+                ? await request.executeTool!(name, args, executionId, tool.route, operation)
+                : await request.executeTool!(name, args, executionId, tool.route);
+            }
             catch (error) {
               await request.onToolCompleted?.({ name, executionId, durationMs: Date.now() - started, error });
               throw error;
@@ -211,6 +234,10 @@ export class AcpAgentRuntime implements AgentRuntime {
           model: { provider: request.model.provider, id: request.model.id, thinkingLevel: request.model.thinkingLevel },
           tools: request.tools.map(({ name, description, inputSchema }) => ({ name, description, inputSchema })),
           limits: { maxToolCalls: this.options.maxToolCalls ?? 64 },
+          ...(request.reconcileToolOperation ? { operations: {
+            version: 1, reconcileMethod: "_rakazo/reconcile-tool-operation",
+            required: Boolean(this.options.requireToolOperations),
+          } } : {}),
         } },
       }));
       if (typeof session.sessionId !== "string" || !session.sessionId) throw new Error("ACP session id missing");
